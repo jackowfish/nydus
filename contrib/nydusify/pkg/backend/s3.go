@@ -36,16 +36,20 @@ type S3Backend struct {
 	bucketName         string
 	endpointWithScheme string
 	client             *s3.Client
+	numUploadThreads   int
+	chunkSize          int
 }
 
 type S3Config struct {
-	AccessKeyID     string `json:"access_key_id,omitempty"`
-	AccessKeySecret string `json:"access_key_secret,omitempty"`
-	Endpoint        string `json:"endpoint,omitempty"`
-	Scheme          string `json:"scheme,omitempty"`
-	BucketName      string `json:"bucket_name,omitempty"`
-	Region          string `json:"region,omitempty"`
-	ObjectPrefix    string `json:"object_prefix,omitempty"`
+	AccessKeyID      string `json:"access_key_id,omitempty"`
+	AccessKeySecret  string `json:"access_key_secret,omitempty"`
+	Endpoint         string `json:"endpoint,omitempty"`
+	Scheme           string `json:"scheme,omitempty"`
+	BucketName       string `json:"bucket_name,omitempty"`
+	Region           string `json:"region,omitempty"`
+	ObjectPrefix     string `json:"object_prefix,omitempty"`
+	NumUploadThreads *int   `json:"num_upload_threads,omitempty"`
+	ChunkSize        *int   `json:"chunk_size,omitempty"`
 }
 
 func newS3Backend(rawConfig []byte) (*S3Backend, error) {
@@ -70,6 +74,13 @@ func newS3Backend(rawConfig []byte) (*S3Backend, error) {
 		return nil, errors.Wrap(err, "load default AWS config")
 	}
 
+	if cfg.NumUploadThreads == nil {
+		cfg.NumUploadThreads = aws.Int(5)
+	}
+	if cfg.ChunkSize == nil {
+		cfg.ChunkSize = aws.Int(multipartChunkSize)
+	}
+
 	client := s3.NewFromConfig(s3AWSConfig, func(o *s3.Options) {
 		o.BaseEndpoint = &endpointWithScheme
 		o.Region = cfg.Region
@@ -85,6 +96,8 @@ func newS3Backend(rawConfig []byte) (*S3Backend, error) {
 		bucketName:         cfg.BucketName,
 		endpointWithScheme: endpointWithScheme,
 		client:             client,
+		numUploadThreads:   *cfg.NumUploadThreads,
+		chunkSize:          *cfg.ChunkSize,
 	}, nil
 }
 
@@ -112,7 +125,8 @@ func (b *S3Backend) Upload(ctx context.Context, blobID, blobPath string, size in
 	defer blobFile.Close()
 
 	uploader := manager.NewUploader(b.client, func(u *manager.Uploader) {
-		u.PartSize = multipartChunkSize
+		u.PartSize = int64(b.chunkSize)
+		u.Concurrency = int(b.numUploadThreads)
 	})
 	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(b.bucketName),
