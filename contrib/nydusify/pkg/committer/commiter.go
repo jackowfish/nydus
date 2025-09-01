@@ -254,7 +254,7 @@ func (cm *Committer) Commit(ctx context.Context, opt Opt) error {
 	}
 
 	logrus.Infof("pushing committed image to %s", targetRef)
-	if err := cm.pushManifest(ctx, *image, *bootstrapDiffID, targetRef, "bootstrap-merged.tar", opt.FsVersion, upperBlob, mountBlobs, opt.TargetInsecure); err != nil {
+	if err := cm.pushManifest(ctx, *image, *bootstrapDiffID, targetRef, "bootstrap-merged.tar", opt.FsVersion, upperBlob, mountBlobs, opt.TargetInsecure, opt); err != nil {
 		return errors.Wrap(err, "push manifest")
 	}
 
@@ -610,7 +610,7 @@ func (cm *Committer) syncFilesystem(ctx context.Context, containerID string) err
 }
 
 func (cm *Committer) pushManifest(
-	ctx context.Context, nydusImage parserPkg.Image, bootstrapDiffID digest.Digest, targetRef, bootstrapName, fsversion string, upperBlob *Blob, mountBlobs []Blob, insecure bool,
+	ctx context.Context, nydusImage parserPkg.Image, bootstrapDiffID digest.Digest, targetRef, bootstrapName, fsversion string, upperBlob *Blob, mountBlobs []Blob, insecure bool, opt Opt,
 ) error {
 	lowerBlobLayers := []ocispec.Descriptor{}
 	for idx := range nydusImage.Manifest.Layers {
@@ -627,11 +627,15 @@ func (cm *Committer) pushManifest(
 	for idx := range lowerBlobLayers {
 		config.RootFS.DiffIDs = append(config.RootFS.DiffIDs, lowerBlobLayers[idx].Digest)
 	}
-	for idx := range mountBlobs {
-		mountBlob := mountBlobs[idx]
-		config.RootFS.DiffIDs = append(config.RootFS.DiffIDs, mountBlob.Desc.Digest)
+
+	// When using S3 backend, skip adding new blob DiffIDs since they won't be in manifest
+	if opt.BackendType != "s3" {
+		for idx := range mountBlobs {
+			mountBlob := mountBlobs[idx]
+			config.RootFS.DiffIDs = append(config.RootFS.DiffIDs, mountBlob.Desc.Digest)
+		}
+		config.RootFS.DiffIDs = append(config.RootFS.DiffIDs, upperBlob.Desc.Digest)
 	}
-	config.RootFS.DiffIDs = append(config.RootFS.DiffIDs, upperBlob.Desc.Digest)
 	config.RootFS.DiffIDs = append(config.RootFS.DiffIDs, bootstrapDiffID)
 
 	configBytes, configDesc, err := cm.makeDesc(config, nydusImage.Manifest.Config)
@@ -713,11 +717,16 @@ func (cm *Committer) pushManifest(
 
 	// Push image manifest
 	layers := lowerBlobLayers
-	for idx := range mountBlobs {
-		mountBlob := mountBlobs[idx]
-		layers = append(layers, mountBlob.Desc)
+
+	// When using S3 backend, skip adding new blobs to manifest since they're referenced via URLs
+	// and Nydus only needs the bootstrap layer to function
+	if opt.BackendType != "s3" {
+		for idx := range mountBlobs {
+			mountBlob := mountBlobs[idx]
+			layers = append(layers, mountBlob.Desc)
+		}
+		layers = append(layers, upperBlob.Desc)
 	}
-	layers = append(layers, upperBlob.Desc)
 	layers = append(layers, bootstrapDesc)
 
 	nydusImage.Manifest.Config = *configDesc
