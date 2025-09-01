@@ -37,7 +37,7 @@ type S3Backend struct {
 	endpointWithScheme string
 	client             *s3.Client
 	numUploadThreads   int
-	chunkSize          int
+	partSize           int
 }
 
 type S3Config struct {
@@ -49,7 +49,7 @@ type S3Config struct {
 	Region           string `json:"region,omitempty"`
 	ObjectPrefix     string `json:"object_prefix,omitempty"`
 	NumUploadThreads *int   `json:"num_upload_threads,omitempty"`
-	ChunkSize        *int   `json:"chunk_size,omitempty"`
+	PartSize         *int   `json:"part_size,omitempty"`
 }
 
 func newS3Backend(rawConfig []byte) (*S3Backend, error) {
@@ -77,8 +77,8 @@ func newS3Backend(rawConfig []byte) (*S3Backend, error) {
 	if cfg.NumUploadThreads == nil {
 		cfg.NumUploadThreads = aws.Int(5)
 	}
-	if cfg.ChunkSize == nil {
-		cfg.ChunkSize = aws.Int(multipartChunkSize)
+	if cfg.PartSize == nil {
+		cfg.PartSize = aws.Int(multipartChunkSize)
 	}
 
 	client := s3.NewFromConfig(s3AWSConfig, func(o *s3.Options) {
@@ -97,7 +97,7 @@ func newS3Backend(rawConfig []byte) (*S3Backend, error) {
 		endpointWithScheme: endpointWithScheme,
 		client:             client,
 		numUploadThreads:   *cfg.NumUploadThreads,
-		chunkSize:          *cfg.ChunkSize,
+		partSize:           *cfg.PartSize,
 	}, nil
 }
 
@@ -125,7 +125,7 @@ func (b *S3Backend) Upload(ctx context.Context, blobID, blobPath string, size in
 	defer blobFile.Close()
 
 	uploader := manager.NewUploader(b.client, func(u *manager.Uploader) {
-		u.PartSize = int64(b.chunkSize)
+		u.PartSize = int64(b.partSize)
 		u.Concurrency = int(b.numUploadThreads)
 	})
 	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
