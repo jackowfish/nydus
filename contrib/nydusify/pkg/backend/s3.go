@@ -21,7 +21,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/containerd/containerd/v2/core/remotes"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -116,10 +115,9 @@ func (b *S3Backend) Upload(ctx context.Context, blobID, blobPath string, size in
 		u.PartSize = multipartChunkSize
 	})
 	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
-		Bucket:            aws.String(b.bucketName),
-		Key:               aws.String(blobObjectKey),
-		Body:              blobFile,
-		ChecksumAlgorithm: types.ChecksumAlgorithmCrc32,
+		Bucket: aws.String(b.bucketName),
+		Key:    aws.String(blobObjectKey),
+		Body:   blobFile,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "upload blob to s3 backend")
