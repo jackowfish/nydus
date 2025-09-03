@@ -597,7 +597,8 @@ func (cm *Committer) syncFilesystem(ctx context.Context, containerID string) err
 
 	stderr, err := config.ExecuteContext(ctx, io.Discard, "sync")
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("execute sync in container namespace: %s", strings.TrimSpace(stderr)))
+		// Warn, as sync can be unavailable in some container environments (i.e. gvisor)
+		logrus.Warnf("execute sync in container namespace: %s", strings.TrimSpace(stderr))
 	}
 
 	// Also sync the host filesystem to ensure overlay changes are written
