@@ -15,7 +15,7 @@ require (
 	github.com/containerd/containerd/v2 v2.0.5
 	github.com/containerd/continuity v0.4.5
 	github.com/containerd/errdefs v1.0.0
-	github.com/containerd/nydus-snapshotter v0.15.2
+	github.com/containerd/nydus-snapshotter v0.15.3-0.20250902015632-c9b930c1e283
 	github.com/containerd/platforms v1.0.0-rc.1
 	github.com/distribution/reference v0.6.0
 	github.com/docker/cli v28.1.1+incompatible
@@ -129,4 +129,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/containerd/containerd/v2 => github.com/nydusaccelerator/containerd/v2 v2.0.0-20250528024712-b96732f49d37
+replace (
+	github.com/containerd/containerd/v2 => github.com/nydusaccelerator/containerd/v2 v2.0.0-20250528024712-b96732f49d37
+	github.com/containerd/nydus-snapshotter => github.com/containerd/nydus-snapshotter v0.15.3-0.20250902015632-c9b930c1e283
+)
